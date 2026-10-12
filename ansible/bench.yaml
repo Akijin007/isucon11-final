@@ -11,17 +11,63 @@
           - benchmark_binary is defined
           - benchmark_target is defined
 
-    - name: Run ISUCON11 benchmark
-      ansible.builtin.command:
-        argv:
-          - "{{ benchmark_binary }}"
-          - -target
-          - "{{ benchmark_target }}"
-          - -tls
-          - -exit-status
+    - name: Capture benchmark run metadata
+      ansible.builtin.set_fact:
+        benchmark_run_started_at: "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"
+        benchmark_run_id: "{{ lookup('pipe', 'date -u +%Y%m%dT%H%M%S') }}_{{ lookup('password', '/dev/null chars=ascii_lowercase,digits length=6') }}"
+        benchmark_git_commit: "{{ lookup('pipe', 'git -C ' ~ (playbook_dir | quote) ~ ' rev-parse HEAD') }}"
+
+    - name: Set benchmark log paths
+      ansible.builtin.set_fact:
+        benchmark_remote_log: "/tmp/bench_{{ benchmark_run_id }}.log"
+        benchmark_local_log: "{{ playbook_dir }}/../logs/bench_{{ benchmark_run_id }}.log"
+
+    - name: Create local benchmark log directory
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../logs"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+
+    - name: Initialize benchmark log with run metadata
+      ansible.builtin.copy:
+        dest: "{{ benchmark_remote_log }}"
+        mode: "0644"
+        content: |
+          run_id={{ benchmark_run_id }}
+          git_commit={{ benchmark_git_commit | trim }}
+          target={{ benchmark_target }}
+          started_at={{ benchmark_run_started_at }}
+          benchmark_host={{ inventory_hostname }}
+          --- benchmark output ---
+
+    - name: Run ISUCON benchmark and capture output
+      ansible.builtin.shell: >-
+        {{ benchmark_binary | quote }}
+        -target {{ benchmark_target | quote }}
+        -tls
+        -exit-status
+        >> {{ benchmark_remote_log | quote }} 2>&1
       register: benchmark_result
       changed_when: true
+      failed_when: false
 
-    - name: Show benchmark output
-      ansible.builtin.debug:
-        msg: "{{ benchmark_result.stdout }}"
+    - name: Append benchmark exit code to log
+      ansible.builtin.lineinfile:
+        path: "{{ benchmark_remote_log }}"
+        line: "benchmark_exit_code={{ benchmark_result.rc }}"
+        insertafter: EOF
+
+    - name: Fetch benchmark log to the local machine
+      ansible.builtin.fetch:
+        src: "{{ benchmark_remote_log }}"
+        dest: "{{ benchmark_local_log }}"
+        flat: true
+
+    - name: Report benchmark failure after saving its log
+      ansible.builtin.fail:
+        msg: >-
+          Benchmark exited with status {{ benchmark_result.rc }}.
+          The output and run metadata were saved to {{ benchmark_local_log }}.
+      when: benchmark_result.rc != 0
