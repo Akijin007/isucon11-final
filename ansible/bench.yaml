@@ -1,0 +1,27 @@
+---
+- name: Trigger ISUCON benchmark
+  hosts: benchmarker
+  gather_facts: false
+  become: true
+  become_user: isucon
+  tasks:
+    - name: Require benchmark settings
+      ansible.builtin.assert:
+        that:
+          - benchmark_binary is defined
+          - benchmark_target is defined
+
+    - name: Run ISUCON11 benchmark
+      ansible.builtin.command:
+        argv:
+          - "{{ benchmark_binary }}"
+          - -target
+          - "{{ benchmark_target }}"
+          - -tls
+          - -exit-status
+      register: benchmark_result
+      changed_when: true
+
+    - name: Show benchmark output
+      ansible.builtin.debug:
+        msg: "{{ benchmark_result.stdout }}"

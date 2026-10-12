@@ -1,0 +1,75 @@
+---
+- name: Deploy ISUCON app binary
+  hosts: app
+  become: true
+  tasks:
+    - name: Require deployment settings
+      ansible.builtin.assert:
+        that:
+          - app_service_name is defined
+          - app_binary_path is defined
+          - app_source_dir is defined
+          - app_go_binary is defined
+
+    - name: Ensure application source directory exists
+      ansible.builtin.file:
+        path: "{{ app_source_dir }}"
+        state: directory
+        owner: isucon
+        group: isucon
+        mode: "0755"
+
+    - name: Ensure application binary directory exists
+      ansible.builtin.file:
+        path: "{{ app_binary_path | dirname }}"
+        state: directory
+        owner: isucon
+        group: isucon
+        mode: "0755"
+
+    - name: Copy Go source files to the app server
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ app_source_dir }}/"
+        owner: isucon
+        group: isucon
+        mode: "0644"
+      loop:
+        "{{ lookup('ansible.builtin.fileglob', playbook_dir ~ '/../go/*.go', wantlist=True) }}"
+
+    - name: Copy Go module files to the app server
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../go/{{ item }}"
+        dest: "{{ app_source_dir }}/{{ item }}"
+        owner: isucon
+        group: isucon
+        mode: "0644"
+      loop:
+        - go.mod
+        - go.sum
+
+    - name: Build application with the app server Go toolchain
+      become_user: isucon
+      ansible.builtin.shell: |
+        set -eu
+        temporary_binary=$(mktemp "{{ app_binary_path }}.XXXXXX")
+        trap 'rm -f "$temporary_binary"' EXIT
+        "{{ app_go_binary }}" build -trimpath -o "$temporary_binary" .
+        if [ -f "{{ app_binary_path }}" ] && cmp -s "$temporary_binary" "{{ app_binary_path }}"; then
+          echo unchanged
+        else
+          chmod 0755 "$temporary_binary"
+          mv "$temporary_binary" "{{ app_binary_path }}"
+          echo changed
+        fi
+      args:
+        chdir: "{{ app_source_dir }}"
+      register: app_build_result
+      changed_when: app_build_result.stdout | trim == "changed"
+      notify: Restart application
+
+  handlers:
+    - name: Restart application
+      ansible.builtin.systemd:
+        name: "{{ app_service_name }}"
+        state: restarted

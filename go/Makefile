@@ -1,13 +1,18 @@
-DEST=$(PWD)/isucholar
-COMPILER=go
+DEST=$(CURDIR)/bin/isucholar
+GO?=go
 GO_FILES=$(wildcard ./*.go ./**/*.go)
 
-.PHONY: all
+.PHONY: all build test
 all: clean build ## Cleanup and Build
 
 .PHONY: build
 build: $(GO_FILES) ## Build executable files
-	@$(COMPILER) build -o $(DEST) -ldflags "-s -w"
+	@mkdir -p $(dir $(DEST))
+	@$(GO) build -o $(DEST) -ldflags "-s -w"
+
+.PHONY: test
+test: ## Run Go tests locally
+	@$(GO) test ./...
 
 .PHONY: clean
 clean: ## Cleanup files
