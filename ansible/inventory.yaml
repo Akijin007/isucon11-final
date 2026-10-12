@@ -1,0 +1,20 @@
+all:
+  vars:
+    ansible_user: isucon
+  children:
+    app:
+      hosts:
+        app1:
+          # Existing ~/.ssh/config alias; its HostName resolves through Tailscale.
+          ansible_host: isucon11-app
+          app_service_name: isucholar.go.service
+          app_source_dir: /home/isucon/webapp/go
+          app_binary_path: /home/isucon/webapp/go/isucholar
+          app_go_binary: /home/isucon/local/go/bin/go
+    benchmarker:
+      hosts:
+        benchmarker1:
+          # Existing ~/.ssh/config alias; its HostName resolves through Tailscale.
+          ansible_host: isucon11-bench
+          benchmark_binary: /home/isucon/benchmarker/bin/benchmarker
+          benchmark_target: 172.31.1.99:443
