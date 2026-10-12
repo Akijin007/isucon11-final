@@ -1,0 +1,8 @@
+---
+- name: Configure nginx and database logging settings
+  hosts: app
+  become: true
+  gather_facts: false
+  roles:
+    - nginx
+    - db

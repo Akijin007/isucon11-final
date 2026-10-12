@@ -1,0 +1,48 @@
+---
+- name: Preview nginx file changes without target Python
+  ansible.builtin.raw: >-
+    if [ -f {{ item.dest }} ] &&
+    [ "$(sudo -n sha256sum {{ item.dest }} | cut -d ' ' -f1)" = "{{ lookup('ansible.builtin.file', role_path ~ '/files/' ~ item.src, rstrip=False) | hash('sha256') }}" ];
+    then echo unchanged; else echo changed; fi
+  check_mode: false
+  changed_when: preview_nginx_file.stdout | trim == 'changed'
+  register: preview_nginx_file
+  loop:
+    - src: etc/nginx/nginx.conf
+      dest: /etc/nginx/nginx.conf
+    - src: etc/nginx/sites-available/isucholar.conf
+      dest: /etc/nginx/sites-available/isucholar.conf
+  when: ansible_check_mode
+
+- name: Preview nginx site link without target Python
+  ansible.builtin.raw: >-
+    if [ "$(readlink -f /etc/nginx/sites-enabled/isucholar.conf 2>/dev/null || true)" = /etc/nginx/sites-available/isucholar.conf ];
+    then echo unchanged; else echo changed; fi
+  check_mode: false
+  changed_when: preview_nginx_site_link.stdout | trim == 'changed'
+  register: preview_nginx_site_link
+  when: ansible_check_mode
+
+- name: Deploy nginx configuration files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  loop:
+    - etc/nginx/nginx.conf
+    - etc/nginx/sites-available/isucholar.conf
+  notify: restart_nginx
+  when: not ansible_check_mode
+
+- name: Enable nginx site configuration
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/isucholar.conf
+    dest: /etc/nginx/sites-enabled/isucholar.conf
+    state: link
+    owner: root
+    group: root
+  notify: restart_nginx
+  when: not ansible_check_mode

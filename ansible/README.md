@@ -11,5 +11,6 @@
 
   コマンドと接続先は[Issue #1](https://github.com/Akijin007/isucon11-final/issues/1)に基づいています。
 - `make bench` は実行ごとに一意なログファイルをリポジトリの `logs/` に保存します。ファイル名は `bench_<UTC日時>_<一意な識別子>.log` です。ログには実行ID、Git commit、接続先、開始時刻、ベンチマーカー名、標準出力と標準エラー、最後に `benchmark_exit_code` が記録されます。ベンチマークが失敗した場合も、ログをローカルに回収してから失敗を報告します。
+- `roles/nginx` と `roles/db` は、アプリケーションサーバー上の nginx と MySQL の logging 設定を管理します。設定差分の確認には `ansible-playbook -i ansible/inventory.yaml ansible/configure-logging.yaml --check --diff` を使います。check mode は読み取り専用の SHA-256 と symlink 確認を実行します。対象の Python は 3.8 のため、現在の Ansible 2.21 で通常適用するには別途対応が必要です。
 
 ベンチマークは、ベンチマーク用ネットワークで想定されている経路を通じてアプリケーションサーバーに接続してください。SSH管理接続には `~/.ssh/config` のエイリアスを使います。
