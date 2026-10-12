@@ -17,5 +17,12 @@
 
   The command and target are from [issue #1](https://github.com/Akijin007/isucon11-final/issues/1).
 
+- `make bench` saves each run under the repository's `logs/` directory as
+  `bench_<UTC timestamp>_<unique suffix>.log`. Each file starts with the run ID, Git commit, target,
+  start time, and benchmark host, followed by combined standard output and
+  standard error and a final `benchmark_exit_code` line. The playbook fetches
+  the log before reporting a nonzero benchmark exit status, so failed runs are
+  retained locally as well.
+
 The benchmark command should target the app over the benchmark network's intended
 route. SSH management traffic uses the aliases from `~/.ssh/config`.
