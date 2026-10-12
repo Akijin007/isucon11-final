@@ -1,0 +1,22 @@
+---
+- name: Preview MySQL configuration without target Python
+  ansible.builtin.raw: >-
+    if [ -f /etc/mysql/mysql.conf.d/mysqld.cnf ] &&
+    [ "$(sudo -n sha256sum /etc/mysql/mysql.conf.d/mysqld.cnf | cut -d ' ' -f1)" = "{{ lookup('ansible.builtin.file', role_path ~ '/files/etc/mysql/mysql.conf.d/mysqld.cnf', rstrip=False) | hash('sha256') }}" ];
+    then echo unchanged; else echo changed; fi
+  check_mode: false
+  changed_when: preview_db_config.stdout | trim == 'changed'
+  register: preview_db_config
+  when: ansible_check_mode
+
+- name: Deploy MySQL configuration
+  become: true
+  ansible.builtin.copy:
+    src: etc/mysql/mysql.conf.d/mysqld.cnf
+    dest: /etc/mysql/mysql.conf.d/mysqld.cnf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: restart_db
+  when: not ansible_check_mode
